@@ -221,7 +221,7 @@
       parsedRows = data.map(r => ({
         merchant_id:   String(r['merchant_id']   || r['Merchant_id']   || r['MERCHANT_ID']   || '').trim(),
         merchant_name: String(r['merchant_name'] || r['Merchant_name'] || r['MERCHANT_NAME'] || '').trim(),
-        free_hour:     String(r['free_hour']     || r['Free_hour']     || r['FREE_HOUR']     || '0').trim() || '0'
+        free_hour:     (r['free_hour'] !== undefined && r['free_hour'] !== '' ? String(r['free_hour']).trim() : null) ?? (r['Free_hour'] !== undefined && r['Free_hour'] !== '' ? String(r['Free_hour']).trim() : null) ?? (r['FREE_HOUR'] !== undefined && r['FREE_HOUR'] !== '' ? String(r['FREE_HOUR']).trim() : null) ?? '0'
       })).filter(r => r.merchant_id || r.merchant_name);
 
       // 資料層級驗證
