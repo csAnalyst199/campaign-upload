@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>活動商家名單上傳</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,10 +13,17 @@
   h1 { font-size: 20px; font-weight: 500; margin-bottom: 1.5rem; }
   .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
   label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
-  input[type="date"] { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #fff; color: #1a1a1a; }
-  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem; }
+  .required { color: #e53e3e; margin-left: 2px; }
+  input[type="text"], input[type="date"] { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #fff; color: #1a1a1a; }
+  input.error { border-color: #e53e3e; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-group { margin-bottom: 1rem; }
+  .err-msg { font-size: 12px; color: #e53e3e; margin-top: 4px; display: none; }
+  .err-msg.show { display: block; }
+  .divider { border: none; border-top: 1px solid #e5e5e5; margin: 1.25rem 0; }
   .drop-zone { border: 1.5px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; color: #888; font-size: 14px; transition: all 0.15s; }
   .drop-zone:hover, .drop-zone.dragover { border-color: #555; background: #fafafa; }
+  .drop-zone.error { border-color: #e53e3e; }
   .preview-wrap { margin-top: 1rem; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
   .preview-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #fafafa; border-bottom: 1px solid #e5e5e5; font-size: 13px; color: #666; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -25,21 +31,23 @@
   td { padding: 7px 12px; border-bottom: 1px solid #eee; color: #1a1a1a; }
   .table-scroll { max-height: 240px; overflow-y: auto; }
   .badge-warn { background: #fff7e6; color: #b45309; font-size: 12px; padding: 2px 8px; border-radius: 6px; }
+  .badge-err { background: #fef2f2; color: #dc2626; font-size: 12px; padding: 2px 8px; border-radius: 6px; }
   .btn { width: 100%; padding: 11px; font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; border: none; background: #1a1a1a; color: #fff; margin-top: 1rem; transition: opacity 0.15s; }
   .btn:hover { opacity: 0.85; }
   .btn:disabled { background: #ccc; cursor: not-allowed; opacity: 1; }
   .btn-google { background: #fff; color: #1a1a1a; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 10px; }
   .btn-google:hover { background: #f5f5f5; opacity: 1; }
-  .btn-google img { width: 18px; height: 18px; }
   .status { font-size: 13px; padding: 10px 14px; border-radius: 8px; margin-top: 1rem; }
   .status-ok { background: #f0fdf4; color: #15803d; }
   .status-err { background: #fef2f2; color: #dc2626; }
   .status-info { background: #eff6ff; color: #1d4ed8; }
-  .divider { border: none; border-top: 1px solid #e5e5e5; margin: 1rem 0; }
   .user-info { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #555; margin-bottom: 1rem; }
   .user-info img { width: 28px; height: 28px; border-radius: 50%; }
   .logout-btn { font-size: 12px; color: #888; background: none; border: none; cursor: pointer; text-decoration: underline; margin-left: auto; }
   #upload_section { display: none; }
+  .validation-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; margin-top: 1rem; font-size: 13px; color: #dc2626; display: none; }
+  .validation-box ul { margin: 6px 0 0 16px; }
+  .validation-box li { margin-bottom: 3px; }
 </style>
 </head>
 <body>
@@ -47,14 +55,16 @@
   <h1>活動商家名單上傳</h1>
 
   <div class="card">
+    <!-- 登入區 -->
     <div id="login_section">
       <div style="font-size:14px;color:#555;margin-bottom:1rem">請用有 Google Sheet 編輯權限的帳號登入</div>
-      <button class="btn btn-google" id="login_btn" onclick="handleLogin()">
-        <img src="https://www.google.com/favicon.ico" alt="">
+      <button class="btn btn-google" onclick="handleLogin()">
+        <img src="https://www.google.com/favicon.ico" alt="" width="18" height="18">
         用 Google 帳號登入
       </button>
     </div>
 
+    <!-- 上傳區 -->
     <div id="upload_section">
       <div class="user-info">
         <img id="user_avatar" src="" alt="">
@@ -63,30 +73,50 @@
       </div>
       <hr class="divider">
 
+      <!-- 活動資訊 -->
+      <div class="field-group">
+        <label>Campaign name <span class="required">*</span></label>
+        <input type="text" id="campaign_name" placeholder="例如：2026 Q2 夏季活動">
+        <div class="err-msg" id="err_campaign_name">請填寫活動名稱</div>
+      </div>
       <div class="field-row">
-        <div>
-          <label>Campaign start date</label>
+        <div class="field-group">
+          <label>Start date <span class="required">*</span></label>
           <input type="date" id="start_date">
+          <div class="err-msg" id="err_start_date">請選擇開始日期</div>
         </div>
-        <div>
-          <label>Campaign end date</label>
+        <div class="field-group">
+          <label>End date <span class="required">*</span></label>
           <input type="date" id="end_date">
+          <div class="err-msg" id="err_end_date">請選擇結束日期</div>
         </div>
       </div>
 
-      <div class="drop-zone" id="drop_zone" onclick="document.getElementById('file_input').click()">
+      <hr class="divider">
+
+      <!-- 檔案上傳 -->
+      <label>商家名單 Excel（.xlsx）<span class="required">*</span></label>
+      <div class="drop-zone" id="drop_zone" onclick="document.getElementById('file_input').click()" style="margin-top:6px">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 8px">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        點擊或拖曳上傳 Excel 檔案（.xlsx）
+        <span id="drop_label">點擊或拖曳上傳 .xlsx 檔案</span>
         <input type="file" id="file_input" accept=".xlsx" style="display:none">
       </div>
+      <div class="err-msg" id="err_file">請上傳 Excel 檔案</div>
 
+      <!-- 格式錯誤提示 -->
+      <div class="validation-box" id="validation_box">
+        <strong>檔案格式有誤，請修正後重新上傳：</strong>
+        <ul id="validation_list"></ul>
+      </div>
+
+      <!-- 預覽 -->
       <div id="preview_area" style="display:none">
         <div class="preview-wrap">
           <div class="preview-header">
             <span id="row_count"></span>
-            <span class="badge-warn" id="warn_badge" style="display:none"></span>
+            <span id="preview_badge" style="display:none"></span>
           </div>
           <div class="table-scroll">
             <table>
@@ -105,16 +135,16 @@
 
 <script>
   // ── 設定區 ──────────────────────────────────────────
-  const CLIENT_ID     = 'YOUR_GOOGLE_OAUTH_CLIENT_ID';
-  const SHEET_ID      = '1jiOaToYurzY0Xn8pl2i2Ey72VEJwAiL7lJ9VxnKIc44';
-  const SCOPES        = 'https://www.googleapis.com/auth/spreadsheets';
+  const CLIENT_ID = '991020577005-ot3htalkulumilk4auggum524nh1qprg.apps.googleusercontent.com';
+  const SHEET_ID  = '1jiOaToYurzY0Xn8pl2i2Ey72VEJwAiL7lJ9VxnKIc44';
+  const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
   // ────────────────────────────────────────────────────
 
   let tokenClient;
   let accessToken = null;
   let parsedRows  = [];
+  let fileValid   = false;
 
-  // Google Identity Services 初始化
   window.onload = () => {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
@@ -127,9 +157,7 @@
     });
   };
 
-  function handleLogin() {
-    tokenClient.requestAccessToken();
-  }
+  function handleLogin() { tokenClient.requestAccessToken(); }
 
   function handleLogout() {
     google.accounts.oauth2.revoke(accessToken, () => {
@@ -140,13 +168,13 @@
   }
 
   async function fetchUserInfo() {
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    const res  = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     const info = await res.json();
-    document.getElementById('user_name').textContent = info.name || info.email;
-    document.getElementById('user_avatar').src = info.picture || '';
-    document.getElementById('login_section').style.display = 'none';
+    document.getElementById('user_name').textContent   = info.name || info.email;
+    document.getElementById('user_avatar').src         = info.picture || '';
+    document.getElementById('login_section').style.display  = 'none';
     document.getElementById('upload_section').style.display = 'block';
   }
 
@@ -161,68 +189,130 @@
 
   function handleFile(file) {
     if (!file) return;
+    document.getElementById('preview_area').style.display = 'none';
+    document.getElementById('validation_box').style.display = 'none';
+    fileValid = false;
+
     const reader = new FileReader();
     reader.onload = e => {
-      const wb = XLSX.read(e.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const wb   = XLSX.read(e.target.result, { type: 'array' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
+      // 欄位名稱正規化
+      const errors = [];
+      const firstRow = data[0] || {};
+      const keys = Object.keys(firstRow).map(k => k.trim().toLowerCase());
+
+      const hasMerchantId   = keys.some(k => k === 'merchant_id');
+      const hasMerchantName = keys.some(k => k === 'merchant_name');
+
+      if (!hasMerchantId)   errors.push('找不到欄位 merchant_id');
+      if (!hasMerchantName) errors.push('找不到欄位 merchant_name');
+
+      if (errors.length > 0) {
+        showValidationErrors(errors);
+        dropZone.classList.add('error');
+        return;
+      }
+
+      // 解析資料
       parsedRows = data.map(r => ({
         merchant_id:   String(r['merchant_id']   || r['Merchant_id']   || r['MERCHANT_ID']   || '').trim(),
         merchant_name: String(r['merchant_name'] || r['Merchant_name'] || r['MERCHANT_NAME'] || '').trim()
-      })).filter(r => r.merchant_id);
+      })).filter(r => r.merchant_id || r.merchant_name);
 
-      const invalid = parsedRows.filter(r => !r.merchant_name).length;
+      // 資料層級驗證
+      const emptyId   = parsedRows.filter(r => !r.merchant_id).length;
+      const emptyName = parsedRows.filter(r => !r.merchant_name).length;
+      const dataErrors = [];
+      if (emptyId   > 0) dataErrors.push(`${emptyId} 筆資料缺少 merchant_id`);
+      if (emptyName > 0) dataErrors.push(`${emptyName} 筆資料缺少 merchant_name`);
+
+      if (dataErrors.length > 0) {
+        showValidationErrors(dataErrors);
+        dropZone.classList.add('error');
+        return;
+      }
+
+      // 通過驗證
+      dropZone.classList.remove('error');
+      document.getElementById('err_file').classList.remove('show');
+      document.getElementById('drop_label').textContent = `✓ ${file.name}（${parsedRows.length} 筆）`;
+
       const tbody = document.getElementById('preview_body');
       tbody.innerHTML = parsedRows.slice(0, 100).map(r =>
-        `<tr><td>${r.merchant_id}</td><td>${r.merchant_name || '<span style="color:#b45309">空白</span>'}</td></tr>`
+        `<tr><td>${r.merchant_id}</td><td>${r.merchant_name}</td></tr>`
       ).join('');
       if (parsedRows.length > 100) {
         tbody.innerHTML += `<tr><td colspan="2" style="color:#aaa;text-align:center">... 僅顯示前 100 筆</td></tr>`;
       }
 
       document.getElementById('row_count').textContent = `共 ${parsedRows.length} 筆`;
-      const wb2 = document.getElementById('warn_badge');
-      if (invalid > 0) { wb2.textContent = `${invalid} 筆缺少商家名稱`; wb2.style.display = 'inline-block'; }
-      else wb2.style.display = 'none';
-
+      document.getElementById('preview_badge').style.display = 'none';
       document.getElementById('preview_area').style.display = 'block';
+
+      fileValid = true;
       checkReady();
     };
     reader.readAsArrayBuffer(file);
   }
 
-  function checkReady() {
-    const s = document.getElementById('start_date').value;
-    const e = document.getElementById('end_date').value;
-    document.getElementById('submit_btn').disabled = !(s && e && parsedRows.length > 0 && accessToken);
+  function showValidationErrors(errors) {
+    const box  = document.getElementById('validation_box');
+    const list = document.getElementById('validation_list');
+    list.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
+    box.style.display = 'block';
   }
 
-  document.getElementById('start_date').addEventListener('change', checkReady);
-  document.getElementById('end_date').addEventListener('change', checkReady);
+  function checkReady() {
+    const name  = document.getElementById('campaign_name').value.trim();
+    const start = document.getElementById('start_date').value;
+    const end   = document.getElementById('end_date').value;
+    document.getElementById('submit_btn').disabled = !(name && start && end && fileValid && accessToken);
+  }
+
+  ['campaign_name', 'start_date', 'end_date'].forEach(id => {
+    document.getElementById(id).addEventListener('input', checkReady);
+    document.getElementById(id).addEventListener('change', checkReady);
+  });
 
   // 寫入 Google Sheet
   async function submitData() {
+    // 表單驗證
+    let hasError = false;
+    const name  = document.getElementById('campaign_name').value.trim();
+    const start = document.getElementById('start_date').value;
+    const end   = document.getElementById('end_date').value;
+
+    if (!name)  { setFieldError('campaign_name', true); hasError = true; }
+    else        { setFieldError('campaign_name', false); }
+    if (!start) { setFieldError('start_date', true); hasError = true; }
+    else        { setFieldError('start_date', false); }
+    if (!end)   { setFieldError('end_date', true); hasError = true; }
+    else        { setFieldError('end_date', false); }
+    if (!fileValid) { document.getElementById('err_file').classList.add('show'); hasError = true; }
+
+    if (hasError) return;
+
     const btn = document.getElementById('submit_btn');
     btn.disabled = true;
     btn.textContent = '上傳中...';
     showStatus('處理中...', 'info');
 
-    const startDate = document.getElementById('start_date').value;
-    const endDate   = document.getElementById('end_date').value;
-
     try {
-      // 確保 activities 分頁存在，取得下一個 activity_id
       const activityId = await getNextActivityId();
 
-      // 寫入 activities 分頁
-      await appendToSheet('activities', [[activityId, startDate, endDate]]);
+      // 寫入 campaign tab
+      await ensureHeader('campaign', [['activity_id', 'campaign_name', 'start_date', 'end_date']]);
+      await appendRows('campaign', [[activityId, name, start, end]]);
 
-      // 寫入 activity_merchants 分頁
+      // 寫入 campaign_merchant_list tab
+      await ensureHeader('campaign_merchant_list', [['activity_id', 'merchant_id', 'merchant_name']]);
       const merchantRows = parsedRows.map(r => [activityId, r.merchant_id, r.merchant_name]);
-      await appendToSheet('activity_merchants', merchantRows);
+      await appendRows('campaign_merchant_list', merchantRows);
 
-      showStatus(`✓ 寫入成功！activity_id：${activityId}，共 ${parsedRows.length} 筆商家`, 'ok');
+      showStatus(`✓ 寫入成功！activity_id：${activityId}，活動：${name}，共 ${parsedRows.length} 筆商家`, 'ok');
       btn.textContent = '寫入完成';
     } catch(err) {
       showStatus('錯誤：' + err.message, 'err');
@@ -231,54 +321,35 @@
     }
   }
 
+  function setFieldError(id, show) {
+    document.getElementById(id).classList.toggle('error', show);
+    document.getElementById('err_' + id).classList.toggle('show', show);
+  }
+
   async function getNextActivityId() {
-    const res = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/activities!A:A`,
+    const res  = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/campaign!A:A`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     const data = await res.json();
-    if (data.error) {
-      // 分頁不存在，建立 header
-      await appendToSheet('activities', [['activity_id', 'campaign_start_date', 'campaign_end_date']]);
-      return 1;
-    }
-    const rows = data.values || [];
-    return Math.max(1, rows.length); // header 佔第1行，所以 rows.length 即為下一個 id
+    if (data.error || !data.values) return 1;
+    return data.values.length; // header 佔第1行，所以筆數 = 下一個 id
   }
 
-  async function appendToSheet(sheetName, rows) {
-    // 確保 header 存在
-    const headerMap = {
-      activities:         [['activity_id', 'campaign_start_date', 'campaign_end_date']],
-      activity_merchants: [['activity_id', 'merchant_id', 'merchant_name']]
-    };
-
-    const checkRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${sheetName}!A1`,
+  async function ensureHeader(sheetName, header) {
+    const res  = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(sheetName + '!A1')}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
-    const checkData = await checkRes.json();
-    if (!checkData.values) {
-      // 分頁是空的，先寫 header
-      await writeValues(sheetName, headerMap[sheetName]);
-    }
-
-    await writeValues(sheetName, rows, true);
+    const data = await res.json();
+    if (!data.values) await appendRows(sheetName, header);
   }
 
-  async function writeValues(sheetName, rows, append = false) {
-    const method = append ? 'append' : 'update';
-    const range  = `${sheetName}!A1`;
-    const url    = append
-      ? `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`
-      : `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`;
-
+  async function appendRows(sheetName, rows) {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(sheetName + '!A1')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
     const res = await fetch(url, {
-      method: append ? 'POST' : 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ values: rows })
     });
     const data = await res.json();
