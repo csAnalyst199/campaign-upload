@@ -120,7 +120,7 @@
           </div>
           <div class="table-scroll">
             <table>
-              <thead><tr><th>merchant_id</th><th>merchant_name</th><th>free_hour</th></tr></thead>
+              <thead><tr><th>merchant_id</th><th>merchant_name</th></tr></thead>
               <tbody id="preview_body"></tbody>
             </table>
           </div>
@@ -220,8 +220,7 @@
       // 解析資料
       parsedRows = data.map(r => ({
         merchant_id:   String(r['merchant_id']   || r['Merchant_id']   || r['MERCHANT_ID']   || '').trim(),
-        merchant_name: String(r['merchant_name'] || r['Merchant_name'] || r['MERCHANT_NAME'] || '').trim(),
-        free_hour:     (r['free_hour'] !== undefined && r['free_hour'] !== '' ? String(r['free_hour']).trim() : null) ?? (r['Free_hour'] !== undefined && r['Free_hour'] !== '' ? String(r['Free_hour']).trim() : null) ?? (r['FREE_HOUR'] !== undefined && r['FREE_HOUR'] !== '' ? String(r['FREE_HOUR']).trim() : null) ?? '0'
+        merchant_name: String(r['merchant_name'] || r['Merchant_name'] || r['MERCHANT_NAME'] || '').trim()
       })).filter(r => r.merchant_id || r.merchant_name);
 
       // 資料層級驗證
@@ -244,7 +243,7 @@
 
       const tbody = document.getElementById('preview_body');
       tbody.innerHTML = parsedRows.slice(0, 100).map(r =>
-        `<tr><td>${r.merchant_id}</td><td>${r.merchant_name}</td><td>${r.free_hour}</td></tr>`
+        `<tr><td>${r.merchant_id}</td><td>${r.merchant_name}</td></tr>`
       ).join('');
       if (parsedRows.length > 100) {
         tbody.innerHTML += `<tr><td colspan="2" style="color:#aaa;text-align:center">... 僅顯示前 100 筆</td></tr>`;
@@ -310,8 +309,8 @@
       await appendRows('campaign', [[activityId, name, start, end]]);
 
       // 寫入 campaign_merchant_list tab
-      await ensureHeader('campaign_merchant_list', [['activity_id', 'merchant_id', 'merchant_name', 'free_hour']]);
-      const merchantRows = parsedRows.map(r => [activityId, r.merchant_id, r.merchant_name, r.free_hour]);
+      await ensureHeader('campaign_merchant_list', [['activity_id', 'merchant_id', 'merchant_name']]);
+      const merchantRows = parsedRows.map(r => [activityId, r.merchant_id, r.merchant_name]);
       await appendRows('campaign_merchant_list', merchantRows);
 
       showStatus(`✓ 寫入成功！activity_id：${activityId}，活動：${name}，共 ${parsedRows.length} 筆商家`, 'ok');
